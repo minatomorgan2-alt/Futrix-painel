@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FUTRIX — Painel Administrativo</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+    body { background: #0b0b0b; color: #ffffff; min-height: 100vh; }
+    header {
+      background: #141414;
+      border-bottom: 3px solid #e10600;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo { font-size: 24px; font-weight: 900; letter-spacing: 2px; }
+    .logo span { color: #e10600; }
+    .btn-logout {
+      background: transparent;
+      color: #ffffff;
+      border: 1px solid #444;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .container { max-width: 720px; margin: 0 auto; padding: 20px 16px 40px; }
+
+    /* Login */
+    .login-box {
+      background: #141414;
+      border: 1px solid #262626;
+      border-top: 4px solid #e10600;
+      border-radius: 10px;
+      padding: 24px 18px;
+      margin-top: 30px;
+    }
+    .login-box h2 { margin-bottom: 6px; font-size: 20px; }
+    .login-box p { color: #b3b3b3; font-size: 14px; margin-bottom: 18px; }
+    label { display: block; font-size: 13px; color: #cccccc; margin-bottom: 6px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 14px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #0b0b0b;
+      color: #ffffff;
+      font-size: 15px;
+    }
+    .btn-primary {
+      width: 100%;
+      padding: 13px;
+      background: #e10600;
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .error-msg { color: #ff5c5c; font-size: 13px; margin-top: 12px; }
+
+    /* Contadores e Abas */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .stat-card {
+      background: #141414;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .stat-card strong { display: block; font-size: 22px; color: #ffffff; }
+    .stat-card.pending strong { color: #e10600; }
+    .stat-card span { font-size: 12px; color: #aaaaaa; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+    .tab {
+      flex: 1;
+      padding: 11px 8px;
+      background: #141414;
+      color: #cccccc;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .tab.active {
+      background: #e10600;
+      color: #ffffff;
+      border-color: #e10600;
+    }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .toolbar span { font-size: 13px; color: #999; }
+    .btn-refresh {
+      background: #1e1e1e;
+      color: #fff;
+      border: 1px solid #333;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    /* Cards de Notícias */
+    .news-card {
+      background: #141414;
+      border: 1px solid #262626;
+      border-left: 4px solid #e10600;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .badge {
+      display: inline-block;
+      background: #e10600;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .news-img {
+      width: 100%;
+      max-height: 220px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: #222;
+    }
+    .news-card h3 { font-size: 18px; line-height: 1.35; margin-bottom: 8px; }
+    .news-summary { font-size: 14px; color: #d4d4d4; line-height: 1.45; margin-bottom: 10px; }
+    .news-caption {
+      background: #0b0b0b;
+      border: 1px solid #262626;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #eeeeee;
+      white-space: pre-line;
+      margin-bottom: 10px;
+    }
+    .news-meta { font-size: 12px; color: #888; margin-bottom: 14px; word-break: break-all; }
+    .news-meta a { color: #ff4d4d; text-decoration: none; }
+
+    .actions { display: flex; gap: 10px; }
+    .btn-approve, .btn-reject, .btn-pending {
+      flex: 1;
+      padding: 11px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn-approve { background: #ffffff; color: #0b0b0b; }
+    .btn-reject { background: #262626; color: #ff5c5c; border: 1px solid #3a3a3a; }
+    .btn-pending { background: #262626; color: #ffffff; }
+    .empty {
+      text-align: center;
+      color: #888;
+      background: #141414;
+      border: 1px dashed #2c2c2c;
+      border-radius: 10px;
+      padding: 32px 16px;
+      font-size: 14px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">FUT<span>RIX</span></div>
+    <button id="logoutBtn" class="btn-logout hidden" onclick="logout()">Sair</button>
+  </header>
+
+  <div class="container">
+    <!-- TELA DE LOGIN -->
+    <div id="loginSection" class="login-box">
+      <h2>Acesso Administrativo</h2>
+      <p>Entre com seu e-mail e senha cadastrados no Supabase.</p>
+      <label for="email">E-mail</label>
+      <input type="email" id="email" placeholder="seuemail@exemplo.com" />
+      <label for="password">Senha</label>
+      <input type="password" id="password" placeholder="••••••••" />
+      <button class="btn-primary" onclick="login()">Entrar no Painel</button>
+      <div id="loginError" class="error-msg"></div>
+    </div>
+
+    <!-- PAINEL PRINCIPAL -->
+    <div id="adminSection" class="hidden">
+      <div class="stats">
+        <div class="stat-card pending">
+          <strong id="countPending">0</strong>
+          <span>Pendentes</span>
+        </div>
+        <div class="stat-card">
+          <strong id="countApproved">0</strong>
+          <span>Aprovadas</span>
+        </div>
+        <div class="stat-card">
+          <strong id="countRejected">0</strong>
+          <span>Rejeitadas</span>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button id="tab-pending" class="tab active" onclick="setTab('pending')">Pendentes</button>
+        <button id="tab-approved" class="tab" onclick="setTab('approved')">Aprovadas</button>
+        <button id="tab-rejected" class="tab" onclick="setTab('rejected')">Rejeitadas</button>
+      </div>
+
+      <div class="toolbar">
+        <span id="statusText">Carregando...</span>
+        <button class="btn-refresh" onclick="loadNews()">Atualizar</button>
+      </div>
+
+      <div id="newsList"></div>
+    </div>
+  </div>
+
+  <script>
+    // COLE SUAS INFORMAÇÕES PÚBLICAS DO SUPABASE AQUI:
+    const SUPABASE_URL = "https://ihldvseybgxtbmbgaiaz.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_-ZqWxDFqTUX1XNAF_IJKlA_CHAhN5p0";
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let currentTab = "pending";
+    let allNews = [];
+
+    async function checkSession() {
+      const { data: { session } } = await db.auth.getSession();
+      if (session) {
+        showAdmin();
+      }
+    }
+
+    async function login() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const errorBox = document.getElementById("loginError");
+      errorBox.textContent = "";
+
+      const { error } = await db.auth.signInWithPassword({ email, password });
+      if (error) {
+        errorBox.textContent = "Erro ao entrar: " + error.message;
+        return;
+      }
+      showAdmin();
+    }
+
+    async function logout() {
+      await db.auth.signOut();
+      document.getElementById("adminSection").classList.add("hidden");
+      document.getElementById("logoutBtn").classList.add("hidden");
+      document.getElementById("loginSection").classList.remove("hidden");
+    }
+
+    function showAdmin() {
+      document.getElementById("loginSection").classList.add("hidden");
+      document.getElementById("adminSection").classList.remove("hidden");
+      document.getElementById("logoutBtn").classList.remove("hidden");
+      loadNews();
+    }
+
+    async function loadNews() {
+      const statusText = document.getElementById("statusText");
+      statusText.textContent = "Sincronizando com o banco...";
+
+      const { data, error } = await db
+        .from("news")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        statusText.textContent = "Erro ao carregar: " + error.message;
+        return;
+      }
+
+      allNews = data || [];
+      updateCounts();
+      renderNews();
+      statusText.textContent = "Conectado ao Supabase";
+    }
+
+    function updateCounts() {
+      document.getElementById("countPending").textContent = allNews.filter(n => n.status === "pending").length;
+      document.getElementById("countApproved").textContent = allNews.filter(n => n.status === "approved").length;
+      document.getElementById("countRejected").textContent = allNews.filter(n => n.status === "rejected").length;
+    }
+
+    function setTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll(".tab").forEach(btn => btn.classList.remove("active"));
+      document.getElementById("tab-" + tab).classList.add("active");
+      renderNews();
+    }
+
+    function renderNews() {
+      const container = document.getElementById("newsList");
+      const filtered = allNews.filter(item => item.status === currentTab);
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="empty">Nenhuma notícia nesta aba no momento.</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(item => `
+        <div class="news-card">
+          <div class="badge">${escapeHtml(item.category || "Futebol Brasileiro")}</div>
+          ${item.image_url ? `<img class="news-img" src="${escapeHtml(item.image_url)}" alt="Imagem da notícia" />` : ""}
+          <h3>${escapeHtml(item.title || "Sem título")}</h3>
+          <p class="news-summary">${escapeHtml(item.summary || "")}</p>
+          ${item.caption ? `<div class="news-caption">${escapeHtml(item.caption)}</div>` : ""}
+          <div class="news-meta">
+            ${item.source_url ? `Fonte: <a href="${escapeHtml(item.source_url)}" target="_blank">${escapeHtml(item.source_url)}</a>` : ""}
+          </div>
+          <div class="actions">
+            ${item.status !== "approved" ? `<button class="btn-approve" onclick="updateStatus(${item.id}, 'approved')">Aprovar</button>` : ""}
+            ${item.status !== "rejected" ? `<button class="btn-reject" onclick="updateStatus(${item.id}, 'rejected')">Rejeitar</button>` : ""}
+            ${item.status !== "pending" ? `<button class="btn-pending" onclick="updateStatus(${item.id}, 'pending')">Voltar p/ Pendente</button>` : ""}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    async function updateStatus(id, newStatus) {
+      const { error } = await db
+        .from("news")
+        .update({ status: newStatus })
+        .eq("id", id);
+
+      if (error) {
+        alert("Erro ao atualizar status: " + error.message);
+        return;
+      }
+      loadNews();
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    checkSession();
+  </script>
+</body>
+</html>

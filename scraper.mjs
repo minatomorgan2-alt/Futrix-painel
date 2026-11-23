@@ -1,0 +1,108 @@
+const feeds = [
+  { url: "https://ge.globo.com/rss/ge/futebol/", category: "Futebol Brasileiro" },
+  { url: "https://www.espn.com.br/espn/rss/futebol/news", category: "Futebol Brasileiro" },
+  { url: "https://www.gazetaesportiva.com/feed/", category: "Futebol Brasileiro" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/flamengo/", category: "Flamengo" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/corinthians/", category: "Corinthians" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/palmeiras/", category: "Palmeiras" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/sao-paulo/", category: "São Paulo" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/santos/", category: "Santos" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/vasco/", category: "Vasco" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/cruzeiro/", category: "Cruzeiro" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/gremio/", category: "Grêmio" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/internacional/", category: "Internacional" },
+  { url: "https://ge.globo.com/rss/ge/futebol/times/atletico-mg/", category: "Atlético-MG" }
+];
+
+function cleanText(str = "") {
+  return str
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractTag(block, tag) {
+  const m = block.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
+  return m ? cleanText(m[1]) : "";
+}
+
+function extractImage(block) {
+  const mediaMatch = block.match(/<(?:media:content|media:thumbnail|enclosure)[^>]*url=["']([^"']+)["']/i);
+  if (mediaMatch) return mediaMatch[1];
+  const imgMatch = block.match(/<img[^>]*src=["']([^"']+)["']/i);
+  return imgMatch ? imgMatch[1] : "";
+}
+
+const existingRes = await fetch(`${process.env.SUPABASE_URL}/rest/v1/news?select=source_url`, {
+  headers: {
+    apikey: process.env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`
+  }
+});
+const existingData = existingRes.ok ? await existingRes.json() : [];
+const seenUrls = new Set(existingData.map(r => r.source_url).filter(Boolean));
+
+const toInsert = [];
+
+for (const feed of feeds) {
+  try {
+    const res = await fetch(feed.url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!res.ok) continue;
+    const xml = await res.text();
+    const items = xml.match(/<item\b[\s\S]*?<\/item>/gi) || [];
+
+    for (const item of items.slice(0, 5)) {
+      const title = extractTag(item, "title");
+      const link = extractTag(item, "link");
+      const desc = extractTag(item, "description");
+      if (!title || !link || seenUrls.has(link)) continue;
+
+      seenUrls.add(link);
+      const summary = desc.slice(0, 260);
+      const caption = `${title}\n\n${summary}\n\n#FutebolBrasileiro #FUTRIX`;
+      const image_url = extractImage(item);
+
+      toInsert.push({
+        title,
+        summary,
+        caption,
+        category: feed.category,
+        image_url: image_url || null,
+        source_url: link,
+        status: "pending"
+      });
+    }
+  } catch (e) {
+    console.error("Erro no feed:", feed.url, e.message);
+  }
+}
+
+if (toInsert.length === 0) {
+  console.log("Nenhuma notícia nova encontrada.");
+  process.exit(0);
+}
+
+const insertRes = await fetch(`${process.env.SUPABASE_URL}/rest/v1/news`, {
+  method: "POST",
+  headers: {
+    apikey: process.env.SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+    "Content-Type": "application/json",
+    Prefer: "return=minimal"
+  },
+  body: JSON.stringify(toInsert)
+});
+
+if (!insertRes.ok) {
+  const errText = await insertRes.text();
+  throw new Error(`Falha ao inserir no Supabase: ${insertRes.status} ${errText}`);
+}
+
+console.log(`Inseridas ${toInsert.length} notícias novas como pendentes.`);
+      
